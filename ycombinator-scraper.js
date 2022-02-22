@@ -1,26 +1,37 @@
 const puppeteer = require("puppeteer");
 
-function run() {
+function run(pagesToScrape) {
   return new Promise(async (resolve, reject) => {
     try {
+      if (!pagesToScrape) {
+        pagesToScrape = 1;
+      }
       const browser = await puppeteer.launch();
       const page = await browser.newPage();
       await page.goto("https://news.ycombinator.com/");
-      // Build a results[] of item objects with `url` and `text` fields, that in this example
-      // represent recent news(30 entries) on `Hacker News` website.
-      // Resource on Puppeteer:
-      // evaluate() => https://pptr.dev/#?product=Puppeteer&version=v13.3.2&show=api-pageevaluatepagefunction-args
-      let urls = await page.evaluate(() => {
-        let results = [];
-        let items = document.querySelectorAll("a.titlelink");
-        items.forEach((item) => {
-          results.push({
-            url: item.getAttribute("href"),
-            text: item.innerHTML,
+      let currentPage = 1;
+      let urls = [];
+      while (currentPage <= pagesToScrape) {
+        let newUrls = await page.evaluate(() => {
+          let results = [];
+          let items = document.querySelectorAll("a.titlelink");
+          items.forEach((item) => {
+            results.push({
+              url: item.getAttribute("href"),
+              text: item.innerHTML,
+            });
           });
+          return results;
         });
-        return results;
-      });
+        urls = urls.concat(newUrls);
+        if (currentPage < pagesToScrape) {
+          await Promise.all([
+            await page.click("a.morelink"),
+            await page.waitForSelector("a.titlelink"),
+          ]);
+        }
+        currentPage++;
+      }
       browser.close();
       return resolve(urls);
     } catch (e) {
@@ -29,4 +40,4 @@ function run() {
   });
 }
 
-run().then(console.log).catch(console.error);
+run(3).then(console.log).catch(console.error);
